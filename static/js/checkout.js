@@ -47,24 +47,33 @@ document.addEventListener("DOMContentLoaded", () => {
   // 🛒 On product select
   productSelect.addEventListener('change', function () {
     const productPreview = document.getElementById('productPreview');
-    if (!this.value) return productPreview.style.display = 'none';
-
+    if (!this.value) {
+      productPreview.style.display = 'none';
+      resetOrderSummary();
+      return;
+    }
+  
     selectedProduct = JSON.parse(this.value);
-
+  
     document.getElementById('productImage').src = selectedProduct.imageUrl;
     document.getElementById('productPrice').textContent = `Rp ${selectedProduct.price.toLocaleString()}`;
     productPreview.style.display = 'block';
-
+  
+    // Order summary
+    const summaryImage = document.getElementById('summaryImage');
     document.getElementById('summaryImageSrc').src = selectedProduct.imageUrl;
-    document.getElementById('summaryImage').style.display = 'block';
+    summaryImage.style.display = 'block';
+  
     document.getElementById('summaryPrice').textContent = `Rp ${selectedProduct.price.toLocaleString()}`;
-
     discount = 0;
     appliedVoucherCode = null;
     voucherInput.value = '';
+    voucherInput.disabled = false;
+    applyBtn.style.display = 'inline-block';
     feedback.textContent = '';
     updateOrderSummary();
   });
+  
 
   // 🧾 Voucher apply
   applyBtn.addEventListener('click', async () => {
@@ -81,8 +90,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // ⏳ Indikator loading
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Checking...';
     feedback.className = 'text-muted mt-1';
-    feedback.textContent = 'Checking voucher...';
+    feedback.textContent = 'Validating voucher...';
 
     try {
       const res = await fetch('/api/voucher/validate', {
@@ -104,6 +116,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         appliedVoucherCode = code;
 
+        // ✅ Kunci input dan sembunyikan tombol
+        voucherInput.disabled = true;
+        applyBtn.style.display = 'none';
+
         feedback.className = 'text-success mt-1';
         feedback.innerHTML = `
           Voucher applied: <strong>${code}</strong> —
@@ -118,8 +134,28 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error(err);
       feedback.className = 'text-danger mt-1';
       feedback.textContent = 'Error validating voucher';
+    } finally {
+      applyBtn.disabled = false;
+      applyBtn.textContent = 'Apply';
     }
   });
+
+  // Fungsi Remove Voucher (aktifkan ulang input & tombol)
+  function bindRemoveVoucher() {
+    const removeBtn = document.getElementById('removeVoucher');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        discount = 0;
+        appliedVoucherCode = null;
+        voucherInput.value = '';
+        voucherInput.disabled = false;
+        applyBtn.style.display = 'inline-block';
+        feedback.className = 'text-muted mt-1';
+        feedback.textContent = 'Voucher removed.';
+        updateOrderSummary();
+      });
+    }
+  }
 
   // 🔁 Remove voucher
   function bindRemoveVoucher() {
@@ -201,15 +237,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (res.ok) {
       alert("✅ Payment Confirmed! Product will be sent to your email.");
       form.reset();
-      document.getElementById('productPreview').style.display = 'none';
-      feedback.textContent = '';
+      selectedProduct = null;
       discount = 0;
       appliedVoucherCode = null;
-      updateOrderSummary();
-    } else {
+    
+      document.getElementById('productPreview').style.display = 'none';
+      voucherInput.value = '';
+      voucherInput.disabled = false;
+      applyBtn.style.display = 'inline-block';
+      feedback.textContent = '';
+      resetOrderSummary();
+    }
+    else {
       alert("❌ Failed to submit order.");
     }
   }
+
+  function resetOrderSummary() {
+    document.getElementById('summaryImage').style.display = 'none';
+    document.getElementById('summaryImageSrc').src = '';
+    document.getElementById('summaryPrice').textContent = 'Rp 0';
+    document.getElementById('summaryDiscount').textContent = '- Rp 0';
+    document.getElementById('summaryTotal').textContent = 'Rp 0';
+  }
+  
 
   // 🔃 Initial load
   loadProducts();

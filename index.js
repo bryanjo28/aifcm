@@ -6,8 +6,12 @@ const nodemailer = require('nodemailer');
 const Product = require('./models/Product');
 const Order = require('./models/Order');
 const Voucher = require('./models/Voucher');
+const Admin = require('./models/Admin');
+const session = require('express-session');
 
 const sendEmail = require('./utils/sendEmail');
+const ensureLoggedIn = require('./utils/Middleware');
+
 
 dotenv.config();
 const app = express();
@@ -27,9 +31,34 @@ mongoose.connect(process.env.MONGO_URI, {
 });
 
 
+
 // Middleware
 app.use(express.json({ limit: '10mb' }));   // ⬅️ Penting!
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: true
+}));
 app.use(express.urlencoded({ extended: true })); // untuk form post dari HTML
+
+
+// Login route
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages/login.html'));
+});
+
+app.post('/admin/login', async (req, res) => {
+    const { username, password } = req.body;
+    const admin = await Admin.findOne({ username });
+
+    if (!admin || admin.password !== password) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    req.session.admin = { id: admin._id, username: admin.username };
+    res.json({ message: 'Login successful' });
+});
+
 
 // Static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
@@ -43,40 +72,70 @@ app.get('/checkout', (req, res) => {
     res.sendFile(path.join(__dirname, 'pages/checkout.html'));
 });
 
+// CMS Dashboard route
+app.get('/cms', ensureLoggedIn, (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages/cms/dashboard.html'));
+});
+
+// Halaman dalam CMS
+app.get('/cms/products', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages/cms/products.html'));
+});
+app.get('/cms/orders', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages/cms/order.html'));
+});
+app.get('/cms/voucher', (req, res) => {
+    res.sendFile(path.join(__dirname, 'pages/cms/voucher.html'));
+});
 
 //Simulasi Order
+// app.post('/api/orders', async (req, res) => {
+//     try {
+//       const order = new Order({
+//         ...req.body,
+//         paymentStatus: 'paid',
+//         paidAt: new Date()
+//       });
+//       await order.save();
+
+//       await sendEmail(order.email, order.productName, order.fileUrl); // ✅ Kirim email
+
+//       res.status(201).json({
+//         message: 'Order created',
+//         downloadLink: order.fileUrl
+//       });
+//     } catch (err) {
+//       console.error(err);
+//       res.status(500).json({ error: 'Gagal membuat order' });
+//     }
+//   });
+
 app.post('/api/orders', async (req, res) => {
     try {
-      const order = new Order({
-        ...req.body,
-        paymentStatus: 'paid',
-        paidAt: new Date()
-      });
-      await order.save();
-  
-      await sendEmail(order.email, order.productName, order.fileUrl); // ✅ Kirim email
-  
-      res.status(201).json({
-        message: 'Order created',
-        downloadLink: order.fileUrl
-      });
+        const order = new Order({
+            ...req.body,
+            paymentStatus: 'paid',
+            paidAt: new Date()
+        });
+        await order.save();
+
+        // await sendEmail(order.email, order.productName, order.fileUrl); // ❌ sementara di-nonaktifkan
+
+        res.status(201).json({
+            message: 'Order created',
+            downloadLink: order.fileUrl
+        });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Gagal membuat order' });
+        console.error(err);
+        res.status(500).json({ error: 'Gagal membuat order' });
     }
-  });
-
-
+});
 
 // Serve form tambah produk
-app.get('/add-product', (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages/add-product.html'));
-});
+// app.get('/add-product', (req, res) => {
+//     res.sendFile(path.join(__dirname, 'pages/cms/add-product.html'));
+// });
 
-// Halaman list produk
-app.get('/products', (req, res) => {
-    res.sendFile(path.join(__dirname, 'pages/products.html'));
-});
 
 // API: ambil semua produk
 app.get('/api/products', async (req, res) => {
@@ -91,16 +150,16 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/voucher/validate', async (req, res) => {
     const { code } = req.body;
     const voucher = await Voucher.findOne({ code, isActive: true });
-  
+
     if (!voucher) {
-      return res.status(404).json({ error: 'Voucher not found or inactive' });
+        return res.status(404).json({ error: 'Voucher not found or inactive' });
     }
-  
+
     res.json({
-      type: voucher.type,
-      value: voucher.value
+        type: voucher.type,
+        value: voucher.value
     });
-  });
+});
 
 
 // API POST produk

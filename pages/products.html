@@ -2,12 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Product List</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <title>Product Management - CMS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
 </head>
 <body class="bg-light">
   <div class="container mt-5">
-    <h2>Product List</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2>Product List</h2>
+      <button class="btn btn-primary" id="toggleFormBtn">+ Add Product</button>
+    </div>
+
+    <!-- Form Add Product -->
+    <div id="productFormWrapper" style="display: none;" class="card card-body mb-4">
+      <h5>Add New Product</h5>
+      <form id="productForm">
+        <div class="row">
+          <div class="mb-3 col-md-6">
+            <label class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" required>
+          </div>
+          <div class="mb-3 col-md-6">
+            <label class="form-label">Slug</label>
+            <input type="text" class="form-control" id="slug" required>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="description"></textarea>
+        </div>
+        <div class="row">
+          <div class="mb-3 col-md-4">
+            <label class="form-label">Price</label>
+            <input type="number" class="form-control" id="price" required>
+          </div>
+          <div class="mb-3 col-md-4">
+            <label class="form-label">Image URL</label>
+            <input type="url" class="form-control" id="imageUrl">
+          </div>
+          <div class="mb-3 col-md-4">
+            <label class="form-label">File URL (Download)</label>
+            <input type="url" class="form-control" id="fileUrl">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-success">Save Product</button>
+      </form>
+    </div>
+
+    <!-- Table Product -->
     <table class="table table-striped" id="productTable">
       <thead class="table-dark">
         <tr>
@@ -20,16 +62,51 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Data will be injected here -->
+        <!-- Data injected via JS -->
       </tbody>
     </table>
   </div>
 
   <script>
+    const toggleFormBtn = document.getElementById('toggleFormBtn');
+    const productFormWrapper = document.getElementById('productFormWrapper');
+    const form = document.getElementById('productForm');
+
+    toggleFormBtn.addEventListener('click', () => {
+      productFormWrapper.style.display = productFormWrapper.style.display === 'none' ? 'block' : 'none';
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById('name').value,
+        slug: document.getElementById('slug').value,
+        description: document.getElementById('description').value,
+        price: parseFloat(document.getElementById('price').value),
+        imageUrl: document.getElementById('imageUrl').value,
+        fileUrl: document.getElementById('fileUrl').value
+      };
+
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        alert("✅ Product added.");
+        form.reset();
+        productFormWrapper.style.display = 'none';
+        fetchProducts(); // Refresh table
+      } else {
+        const result = await res.json();
+        alert("❌ Error: " + (result.error || 'Unknown error'));
+      }
+    });
+
     async function fetchProducts() {
       const res = await fetch('/api/products');
       const data = await res.json();
-
       const tbody = document.querySelector('#productTable tbody');
       tbody.innerHTML = '';
 
