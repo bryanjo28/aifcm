@@ -11,7 +11,7 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const sendEmail = require('./utils/sendEmail');
 const ensureLoggedIn = require('./utils/Middleware');
-
+const cors = require('cors');
 
 dotenv.config();
 const app = express();
@@ -45,6 +45,14 @@ app.use(session({
       sameSite: 'lax'
     }
   }));
+
+  // Use CORS middleware to allow requests from specific origin
+app.use(cors({
+  origin: 'http://localhost:5000', // Allow requests from your frontend URL
+  methods: 'GET,POST', // You can add other HTTP methods as necessary
+  allowedHeaders: 'Content-Type,Authorization', // Add headers that should be allowed
+}));
+
 
 app.use(express.urlencoded({ extended: true })); // untuk form post dari HTML
 
@@ -186,8 +194,8 @@ app.put('/api/products/:id', ensureLoggedIn, async (req, res) => {
     }
   });
 
-//API Order
 
+//API Order
 app.get('/api/orders', ensureLoggedIn, async (req, res) => {
     try {
       const orders = await Order.find().sort({ createdAt: -1 });
@@ -196,7 +204,6 @@ app.get('/api/orders', ensureLoggedIn, async (req, res) => {
       res.status(500).json({ error: 'Failed to fetch orders' });
     }
   });
-
   
 app.post('/api/orders', async (req, res) => {
     try {
@@ -221,6 +228,16 @@ app.post('/api/orders', async (req, res) => {
 
 
 //Voucher API
+app.get('/api/vouchers', ensureLoggedIn, async (req, res) => {
+  try {
+    const vouchers = await Voucher.find().sort({ createdAt: -1 });
+    res.json(vouchers);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch vouchers' });
+  }
+});
+
+
 app.post('/api/voucher/validate', async (req, res) => {
     const { code } = req.body;
     const voucher = await Voucher.findOne({ code, isActive: true });
@@ -235,3 +252,34 @@ app.post('/api/voucher/validate', async (req, res) => {
     });
 });
 
+// Endpoint untuk mengirim email
+app.post("/send-email", async (req, res) => {
+  const { to, subject, text, html } = req.body;
+
+  // Konfigurasi transporter menggunakan SMTP server atau email provider
+  const transporter = nodemailer.createTransport({
+    service: "gmail", // menggunakan Gmail, bisa diganti dengan provider lain
+    auth: {
+      user: process.env.EMAIL_USER, // email pengirim (gunakan env var untuk keamanan)
+      pass: process.env.EMAIL_PASS, // password email pengirim
+    },
+  });
+
+  // Setel data email
+  const mailOptions = {
+    from: process.env.EMAIL_USER, // alamat email pengirim
+    to: to, // alamat email penerima
+    subject: subject, // subjek email
+    text: text, // teks email biasa
+    html: html, // HTML email
+  };
+
+  try {
+    // Kirim email
+    await transporter.sendMail(mailOptions);
+    res.status(200).send({ message: "Email sent successfully!" });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res.status(500).send({ error: "Failed to send email" });
+  }
+});
